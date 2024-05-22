@@ -1,7 +1,7 @@
 from io import BytesIO
 
 from modal import (
-    App,
+App,
     Image,
     build,
     enter,
@@ -31,7 +31,7 @@ with sdxl_image.imports():
     import torch
     from diffusers import DiffusionPipeline
     from PIL import Image
-@app.cls(gpu=gpu.A10G(), container_idle_timeout=240, image=sdxl_image)
+@app.cls(gpu=gpu.A10G(),image=sdxl_image, keep_warm=True) #container_idle_timeout=240, 
 class Model:
     @build()
     def build(self):
@@ -74,7 +74,6 @@ class Model:
         negative_prompt = "deformed, uncentered, detailed, complex, patterned, textured background, colorful, noisy"
         prompt_template = f'simple icon representing an outline of a {item} on a white background'
 
-        print("Prompt template:", prompt_template)
         image = self.base(
             guidance_scale=20,
             prompt=prompt_template,

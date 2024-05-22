@@ -16,8 +16,8 @@ const SVGGCodeContainer: React.FC<{
   const isBest = bestResult === idx;
 
   return (
-    <div style={{ display: "flex", flexDirection: "row", width: 800, gap: 15 }}>
-      <div style={{ flex: 1 }}>
+    <div style={{ display: "flex", flexDirection: "row", width: 600, gap: 15 }}>
+      <div style={{ flex: 3 }}>
         <div className="container">
           <img
             src={`data:image/png;base64,${result.data.image}`}
