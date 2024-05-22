@@ -32,6 +32,28 @@ with vectorizer.imports():
     import svgwrite
 
     from PIL import Image
+    from svgpathtools import Path, Line
+
+def ramer_douglas_peucker(points, epsilon):
+    # This function simplifies the path using the Ramer-Douglas-Peucker algorithm.
+    if len(points) < 3:
+        return points
+
+    def point_line_distance(point, start, end):
+        if np.array_equal(start, end):
+            return np.linalg.norm(np.array(point) - np.array(start))
+        else:
+            return np.abs(np.cross(end - start, start - point)) / np.linalg.norm(end - start)
+
+    start, end = np.array(points[0]), np.array(points[-1])
+    distances = [point_line_distance(np.array(point), start, end) for point in points[1:-1]]
+    max_distance = max(distances)
+
+    if max_distance > epsilon:
+        index = distances.index(max_distance) + 1
+        return ramer_douglas_peucker(points[:index + 1], epsilon)[:-1] + ramer_douglas_peucker(points[index:], epsilon)
+    else:
+        return [points[0], points[-1]]
 
 @app.cls(container_idle_timeout=240, image=vectorizer)
 class Model:
@@ -86,8 +108,41 @@ class Model:
 
         return svg_byte_stream
 
+    def simplify_path(self, path, max_points):
+        points = [(segment.start.real, segment.start.imag) for segment in path] + [(path[-1].end.real, path[-1].end.imag)]
+        epsilon = 0.1  # Initial epsilon
+        simplified_points = ramer_douglas_peucker(points, epsilon)
+        while len(simplified_points) > max_points:
+            epsilon *= 1.1
+            simplified_points = ramer_douglas_peucker(points, epsilon)
+        return simplified_points
 
-    def _inference(self, item, max_lines=100):
+    def svg_to_gcode(self, svg_data, max_lines=150):
+        # Use io.BytesIO to handle the byte stream
+        svg_stream = io.BytesIO(svg_data)
+        paths, attributes = svgpathtools.svg2paths(svg_stream)
+        gcode = []
+        max_points = max_lines // len(paths)  # Distribute max lines equally among paths
+
+        matrix_of_coords = []  # code, x, y, z
+
+        for path in paths:
+            simplified_points = self.simplify_path(path, max_points)
+            start_point = simplified_points[0]
+            gcode.append(f"G00 X{start_point[0]:.3f} Y{start_point[1]:.3f} Z0.5")  # Lift pen and move to start
+
+            for point in simplified_points:
+                x, y = point
+                matrix_of_coords.append(['G01', x, y, 0])
+
+        for coord in matrix_of_coords:
+            gcode.append(f"{coord[0]} X{coord[1]:.3f} Y{coord[2]:.3f} Z-0.500")
+
+        gcode.append("G00 Z0.5")
+
+        return gcode[:max_lines]  # Ensure the total number of GCODE lines is not more than max_lines
+
+    def _inference(self, item, max_lines):
         diffusion_function = modal.Function.lookup("stable-diffusion-xl", "Model.inference")
 
         img = diffusion_function.remote(item=item)
@@ -97,7 +152,7 @@ class Model:
         image = Image.open(img)
         svg = self.image_to_svg(image)
 
-        gcode_output = self.svg_to_gcode(svg.getvalue())
+        gcode_output = self.svg_to_gcode(svg.getvalue(), max_lines=max_lines)
 
         # Get the byte content
         img_byte_content = img.getvalue()
@@ -113,36 +168,6 @@ class Model:
 
         return output
 
-    def svg_to_gcode(self, svg_data):
-        # Use io.BytesIO to handle the byte stream
-        svg_stream = io.BytesIO(svg_data)
-        paths, attributes = svgpathtools.svg2paths(svg_stream)
-        gcode = []
-
-        matrix_of_coords = []  # code, x, y, z
-
-        start_point = paths[0][0].start
-        gcode.append(f"G00 X{start_point.real:.3f} Y{start_point.imag:.3f} Z0.5")  # Lift pen and move to start
-
-        for path in paths:
-            start_point = path[0].start
-            last_x, last_y = start_point.real, start_point.imag
-            matrix_of_coords.append(['G00', last_x, last_y, 0.5])
-
-            for segment in path:
-                if isinstance(segment, svgpathtools.Line):
-                    x, y = segment.end.real, segment.end.imag 
-                    matrix_of_coords.append(['G01', x, y, 0])
-                    last_x, last_y = x, y
-
-        for coord in matrix_of_coords:
-            gcode.append(f"{coord[0]} X{coord[1]:.3f} Y{coord[2]:.3f} Z-0.500")
-
-        gcode.append("G00 Z0.5")
-
-        return gcode
-
-
     @web_endpoint()
-    def web_inference(self, item, max_lines):
+    def web_inference(self, item, max_lines=150):
         return self._inference(item, int(max_lines))

@@ -6,7 +6,7 @@ const GCODE_GENERATION_API_URL =
 export const generateGCode = async (item: string | undefined) => {
   try {
     const response = await axios.get(
-      `${GCODE_GENERATION_API_URL}?item=${item}&max_lines=100`
+      `${GCODE_GENERATION_API_URL}?item=${item}`
     );
 
     if (response) {
