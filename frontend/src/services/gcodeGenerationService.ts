@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const GCODE_GENERATION_API_URL =
-  "https://osedea-team-5--smart-diffusion-xl-model-web-inference.modal.run/";
+  "https://osedea-team-5--vectorizer-model-web-inference.modal.run/";
 
 export const generateGCode = async (item: string | undefined) => {
   try {

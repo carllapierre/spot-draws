@@ -26,15 +26,6 @@ const SVGGCodeContainer: React.FC<{
           />
         </div>
       </div>
-      <div style={{ flex: 1 }}>
-        <div className="container">
-          <img
-            src={`data:image/png;base64,${result.data.no_bg_image}`}
-            alt="Generated Image"
-            style={{ width: "100%", height: "auto" }}
-          />
-        </div>
-      </div>
       <div style={{ flex: 1 }} className={isBest ? "is-best" : ""}>
         <div
           className={"container " + (isBest ? "is-best" : "")}

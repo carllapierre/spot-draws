@@ -74,6 +74,7 @@ class Model:
         # Add paths for each contour
         for contour in contours:
             path_data = "M " + " L ".join(f"{point[0][0]},{point[0][1]}" for point in contour)
+            path_data += " Z"  # Add 'Z' to close the path
             dwg.add(dwg.path(d=path_data, fill="none", stroke="black", stroke_width=stroke_width))
 
         # Convert SVG drawing to byte stream
@@ -85,6 +86,7 @@ class Model:
 
         return svg_byte_stream
 
+
     def _inference(self, item, max_lines=100):
         diffusion_function = modal.Function.lookup("stable-diffusion-xl", "Model.inference")
 
@@ -95,7 +97,7 @@ class Model:
         image = Image.open(img)
         svg = self.image_to_svg(image)
 
-        gcode_output = self.svg_to_gcode(svg.getvalue(), max_lines)
+        gcode_output = self.svg_to_gcode(svg.getvalue())
 
         # Get the byte content
         img_byte_content = img.getvalue()
@@ -119,9 +121,7 @@ class Model:
 
         matrix_of_coords = []  # code, x, y, z
 
-        line_count = 0
-
-        start_point = path[0].start
+        start_point = paths[0][0].start
         gcode.append(f"G00 X{start_point.real:.3f} Y{start_point.imag:.3f} Z0.5")  # Lift pen and move to start
 
         for path in paths:
@@ -130,28 +130,14 @@ class Model:
             matrix_of_coords.append(['G00', last_x, last_y, 0.5])
 
             for segment in path:
-
                 if isinstance(segment, svgpathtools.Line):
                     x, y = segment.end.real, segment.end.imag 
                     matrix_of_coords.append(['G01', x, y, 0])
                     last_x, last_y = x, y
-                    if x < lowest_x:
-                        lowest_x = x
-                    if y < lowest_y:
-                        lowest_y = y
-
-                line_count += 1  # Increment the line count after processing a line
 
         for coord in matrix_of_coords:
-            new_x = coord[1]
-            new_y = coord[2]
-            # Only offset if value is negative
-            if lowest_x < 0:
-                new_x = coord[1] - lowest_x
-            if lowest_y < 0:
-                new_y = coord[2] - lowest_y
+            gcode.append(f"{coord[0]} X{coord[1]:.3f} Y{coord[2]:.3f} Z-0.500")
 
-            gcode.append(f"{coord[0]} X{new_x:.3f} Y{new_y:.3f} Z-0.500")
         gcode.append("G00 Z0.5")
 
         return gcode

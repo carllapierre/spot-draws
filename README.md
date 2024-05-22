@@ -67,6 +67,12 @@ Copy the example environment file and set up your OpenAI API
 cp .env_example .env 
 ```
 
+Launch backend with 
+```
+python main.py
+```
+
+
 ## Code Quality
 
 Please note that the code is slightly dirty due to the limited time we had to write it. Improvements and refactoring are planned for the future.
