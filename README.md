@@ -1,6 +1,6 @@
 # Osedea Hackathon - AI-Powered Drawing with SPOT
 
-This repository contains the code developed during a 16-hour hackathon at Osedea, sponsored by [Modal Labs](https://modal.com/). The goal of the project was to enable our Boston Dynamics robot, SPOT, to register a vocal command to draw something and then execute the drawing.
+This repository contains the code developed during a 16-hour hackathon at [Osedea](https://www.osedea.com/), sponsored by [Modal Labs](https://modal.com/). The goal of the project was to enable our Boston Dynamics robot, SPOT, to register a vocal command to draw something and then execute the drawing.
 
 ![Demo](./assets/demo.gif)
 
