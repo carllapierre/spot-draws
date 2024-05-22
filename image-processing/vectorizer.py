@@ -4,6 +4,7 @@ from modal import (
     App,
     Image,
     web_endpoint,
+    gpu
 )
 
 vectorizer = (
@@ -55,7 +56,7 @@ def ramer_douglas_peucker(points, epsilon):
     else:
         return [points[0], points[-1]]
 
-@app.cls(container_idle_timeout=240, image=vectorizer)
+@app.cls(gpu=gpu.A10G(), keep_warm=True, image=vectorizer)
 class Model:
 
     def image_to_svg(self, pillow_image, stroke_width=7.0):
@@ -88,14 +89,18 @@ class Model:
             max_x = max(max_x, x + w)
             max_y = max(max_y, y + h)
 
+        # Calculate offsets
+        offset_x = -min_x
+        offset_y = -min_y
+
         # Create SVG drawing with viewBox
         width = max_x - min_x
         height = max_y - min_y
-        dwg = svgwrite.Drawing(viewBox=f"{min_x} {min_y} {width} {height}")
+        dwg = svgwrite.Drawing(viewBox=f"0 0 {width} {height}")
 
         # Add paths for each contour
         for contour in contours:
-            path_data = "M " + " L ".join(f"{point[0][0]},{point[0][1]}" for point in contour)
+            path_data = "M " + " L ".join(f"{point[0][0] + offset_x},{point[0][1] + offset_y}" for point in contour)
             path_data += " Z"  # Add 'Z' to close the path
             dwg.add(dwg.path(d=path_data, fill="none", stroke="black", stroke_width=stroke_width))
 
@@ -108,26 +113,27 @@ class Model:
 
         return svg_byte_stream
 
-    def simplify_path(self, path, max_points):
+    def simplify_path(self, path, simplification_percentage):
         points = [(segment.start.real, segment.start.imag) for segment in path] + [(path[-1].end.real, path[-1].end.imag)]
-        epsilon = 0.1  # Initial epsilon
+        epsilon = 0.1
+        original_points_count = len(points)
+        target_points_count = max(2, int(original_points_count * (1 - simplification_percentage / 100.0)))
         simplified_points = ramer_douglas_peucker(points, epsilon)
-        while len(simplified_points) > max_points:
+        while len(simplified_points) > target_points_count:
             epsilon *= 1.1
             simplified_points = ramer_douglas_peucker(points, epsilon)
         return simplified_points
 
-    def svg_to_gcode(self, svg_data, max_lines=150):
+    def svg_to_gcode(self, svg_data):
         # Use io.BytesIO to handle the byte stream
         svg_stream = io.BytesIO(svg_data)
         paths, attributes = svgpathtools.svg2paths(svg_stream)
         gcode = []
-        max_points = max_lines // len(paths)  # Distribute max lines equally among paths
 
         matrix_of_coords = []  # code, x, y, z
 
         for path in paths:
-            simplified_points = self.simplify_path(path, max_points)
+            simplified_points = self.simplify_path(path, float(90))
             start_point = simplified_points[0]
             gcode.append(f"G00 X{start_point[0]:.3f} Y{start_point[1]:.3f} Z0.5")  # Lift pen and move to start
 
@@ -140,9 +146,9 @@ class Model:
 
         gcode.append("G00 Z0.5")
 
-        return gcode[:max_lines]  # Ensure the total number of GCODE lines is not more than max_lines
+        return gcode  
 
-    def _inference(self, item, max_lines):
+    def _vectorize(self, item):
         diffusion_function = modal.Function.lookup("stable-diffusion-xl", "Model.inference")
 
         img = diffusion_function.remote(item=item)
@@ -152,7 +158,7 @@ class Model:
         image = Image.open(img)
         svg = self.image_to_svg(image)
 
-        gcode_output = self.svg_to_gcode(svg.getvalue(), max_lines=max_lines)
+        gcode_output = self.svg_to_gcode(svg.getvalue())
 
         # Get the byte content
         img_byte_content = img.getvalue()
@@ -169,5 +175,5 @@ class Model:
         return output
 
     @web_endpoint()
-    def web_inference(self, item, max_lines=150):
-        return self._inference(item, int(max_lines))
+    def web_vectorize(self, item):
+        return self._vectorize(item, )
