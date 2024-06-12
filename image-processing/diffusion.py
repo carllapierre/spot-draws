@@ -31,7 +31,7 @@ with sdxl_image.imports():
     import torch
     from diffusers import DiffusionPipeline
     from PIL import Image
-@app.cls(gpu=gpu.A10G(),image=sdxl_image, keep_warm=True) #container_idle_timeout=240, 
+@app.cls(gpu=gpu.A10G(),image=sdxl_image, container_idle_timeout=1200) #container_idle_timeout=240, 
 class Model:
     @build()
     def build(self):

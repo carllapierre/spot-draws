@@ -56,7 +56,7 @@ def ramer_douglas_peucker(points, epsilon):
     else:
         return [points[0], points[-1]]
 
-@app.cls(gpu=gpu.A10G(), keep_warm=True, image=vectorizer)
+@app.cls(container_idle_timeout=1200, image=vectorizer)
 class Model:
 
     def image_to_svg(self, pillow_image, stroke_width=7.0):
